@@ -1,0 +1,423 @@
+Note: in the exam, you will be asked to set the context, so before attempting to any question just set the context first which will be mentioned in below questions as well.
+
+
+1. create a deployment with name: deploy1 and use image : nginx and keep replicas =5 , reduce the replicas to 3
+   
+   ##set the context to cluster1
+   kubectl config use-context cluster1
+
+   kubectl create deploy deploy1 --image nginx --replicas=5
+   kubectl scale deploy deploy1 --replicas=3
+   kubectl edit deploy deploy1
+
+2. upgrade the deployment or pod (if they ask you for a pod.. make sure to check wthether the pod is a part of deployment or not )
+   
+   kubectl config use-context cluster2
+
+   upgrade the deployment deploy2 from ngnix:1.7.1 version to nginx:1.7.3. upgrade in rolling update/ recreate
+   kubectl set image deploy deploy2 nginx=nginx:1.7.2
+   kubectl edit deploy deploy2
+
+3. create a pod with name pod1 and image=httpd in namespace prod (if no namespace create it)
+   kubectl get ns
+   kubectl create ns prod
+   kubectl run pod1 --image httpd -n prod
+
+4. create a multi-container named pod1 with container names: container1 and container2, httd and nginx respectively.
+
+   kubectl run pod1 --image httpd --dry-run=client -o yaml > pod1.yaml
+   
+   from the above template you can add multiple containers inside.
+
+5. to deploy a pod in worker node worker1 using node selector/ using node affinity/ nodeName
+   
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    disktype: ssd
+
+---
+
+using nodeName
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeName: worker1
+
+
+6. create a deployment and expose it using nodePort named service1 , nodeport 30006, port : 80, target port 80
+
+   kubectl create deploy deploy1 --image nginx --replicas=5
+   kubectl expose deploy deploy1 --name service1 --type NodePort --nodeport 30006 --port 80  --targetport 80 --dry-run=client -o yaml > service.yaml
+   kubectl get svc
+   kubectl describe svc service1
+
+7. we are having a pod named pod1 image it is using nginx and we have exposed it using clusterIP | nodeport named service2. but we are not able to access it. troubleshoot the issue.
+   no need  to delete the service, you can delete or edit the pod. 
+   kubectl describe service2
+   >>> endpoints >>> ip of Pod1 
+       selector : type= prod
+   
+   kubectl describe pod pod1
+   >> label : type= prod
+
+8. the deployment is exposed on service service3 using nodePort with NodePort 30006, change the port to 30010.
+
+9. taint and toleration example ( prepare a simple example)
+
+
+10. create a persistent volume names vol1 and hostpath: /tmp/data
+
+https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: task-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data"
+
+
+11. create a pvc and we already have a pv name pv1 and create a pod named pod3, image should be nginx and apply pvc on that pod.
+
+    step1: kubectl describe pv pv1
+
+    step 2: create a pvc
+            apiVersion: v1
+
+kind: PersistentVolumeClaim
+
+metadata:
+
+  name: task-pv-claim
+
+spec:
+
+  storageClassName: manual
+
+  accessModes:
+
+    - ReadWriteOnce
+
+  resources:
+
+    requests:
+
+      storage: 3Gi
+
+
+step 3: create a pod 
+      
+apiVersion: v1
+
+kind: Pod
+
+metadata:
+
+  name: task-pv-pod
+
+spec:
+
+  volumes:
+
+    - name: task-pv-storage
+
+      persistentVolumeClaim:
+
+        claimName: task-pv-claim
+
+  containers:
+
+    - name: task-pv-container
+
+      image: nginx
+
+      ports:
+
+        - containerPort: 80
+
+          name: "http-server"
+
+      volumeMounts:
+
+        - mountPath: "/usr/share/nginx/html"
+
+          name: task-pv-storage
+
+
+
+
+12. we are having a pv pv1 and pvc pvc1 but there is something wrong, the pvc is not bound to pv. in pvc we need 5Gi
+    kubectl describe pvc pvc1 (check for storage class, access mode and storage)
+    kubectl describe pv pv1 (check for storage class, access mode and storage)
+    kubectl get pv
+    kubectl get pvc
+
+13. simple examples of secret and configmap
+
+  kubectl create secret generic my-secret --from-literal=key1=supersecret --from-literal=key2=topsecret
+
+
+14. get a simple example of Deamonset and replicaset
+
+15. backup and restore
+
+   backup : question will be like 
+   
+    create a backup of ETCD and use the below certificate to get the backup
+    --endpoints=https://[127.0.0.1]:2379
+    cacert=/etc/kubernetes/pki/etcd/ca.crt
+    --cert=/etc/kubernetes/pki/etcd/server.crt
+    --key=/etc/kubernetes/pki/etcd/server.key
+    /tmp/snapshot-pre-boot.db
+
+backup procedure >>>>>
+
+ETCDCTL_API=3 etcdctl --endpoints=https://[127.0.0.1]:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+     --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
+     snapshot save /tmp/snapshot-pre-boot.db
+
+    
+    kubectl describe pod etcd-master -n kube-system
+    cat /etc/kubernetes/manifests/etcd
+
+
+restore :
+  
+ETCDCTL_API=3 etcdctl --endpoints=https://[127.0.0.1]:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+     --name=master \
+     --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
+     --data-dir /var/lib/etcd-from-backup \
+     --initial-cluster=master=https://127.0.0.1:2380 \
+     --initial-cluster-token=etcd-cluster-1 \
+     --initial-advertise-peer-urls=https://127.0.0.1:2380 \
+     snapshot restore /tmp/snapshot-pre-boot.db
+
+
+16. the pod is running named pod2-worker1 || pod2-master || pod2-worker2 and try to delete it.
+    ssh to Master/worker1/worker2
+    Master: /etc/kubernetes/manifests >> pod1.yaml >> pod1-master
+    worker1: /etc/kubernetes/manifests >> pod2.yaml >> pod2-worker1
+    worker2: /etc/kubernetes/manifests >> pod3.yaml >> pod3-worker2
+
+17. upgrade the master node only or upgrade the worker1
+    
+
+apt-mark unhold kubeadm && \
+apt-get update && apt-get install -y kubeadm=1.22.x-00 && \
+apt-mark hold kubeadm
+
+
+sudo kubeadm upgrade apply v1.22.x
+
+kubectl uncordon master | worker1 | worker2
+
+kubectl drain node master
+kubectl drain node worker1
+
+
+if you want to work on worker node>>
+ssh node1
+kubectl drain node1   (execute this command on master node)
+apt-mark unhold kubeadm && \
+apt-get update && apt-get install -y kubeadm=1.22.x-00 && \
+apt-mark hold kubeadm
+
+sudo kubeadm upgrade node
+
+apt-mark unhold kubelet kubectl && \
+apt-get update && apt-get install -y kubelet=1.22.x-00 kubectl=1.22.x-00 && \
+apt-mark hold kubelet kubectl
+
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+
+kubectl uncordon node1
+
+==========================================================
+
+18. store the logs of pod1 to /tmp/logs/data.txt
+    
+    kubectl logs pod1 > /tmp/logs/data.txt
+   
+    cat /tmp/logs/data.txt
+
+
+19. check how many pods are there with lables type=prod and store the numbers in /tmp/data/pod-numbers
+   
+    kubectl get pods -l type=prod 
+    echo "7" >  /tmp/data/pod-numbers
+
+20. we have a user Maz || serviceaccount and create a role as developer and bind the role with it, create a cluserrole and bind the role
+    
+    role >> developer
+    rolebinding >> developer-bind
+
+   clusterroler >> developer
+   clusterrolebinding >> debeloper-bind
+
+
+   kubectl create role developer --help
+   kubectl create rolbinding developer-bind --help
+
+
+for example :
+
+    create a user :
+    useradd myuser
+    openssl genrsa -out myuser.key 2048
+    openssl req -new -key myuser.key -out myuser.csr -subj "/CN=myuser/O=development"
+    
+    cat myuser.csr | base64 | tr -d "\n"
+
+myuser.yaml
+    
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: myuser
+spec:
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1ZqQ0NBVDRDQVFBd0VURVBNQTBHQTFVRUF3d0dZVzVuWld4aE1JSUJJakFOQmdrcWhraUc5dzBCQVFFRgpBQU9DQVE4QU1JSUJDZ0tDQVFFQTByczhJTHRHdTYxakx2dHhWTTJSVlRWMDNHWlJTWWw0dWluVWo4RElaWjBOCnR2MUZtRVFSd3VoaUZsOFEzcWl0Qm0wMUFSMkNJVXBGd2ZzSjZ4MXF3ckJzVkhZbGlBNVhwRVpZM3ExcGswSDQKM3Z3aGJlK1o2MVNrVHF5SVBYUUwrTWM5T1Nsbm0xb0R2N0NtSkZNMUlMRVI3QTVGZnZKOEdFRjJ6dHBoaUlFMwpub1dtdHNZb3JuT2wzc2lHQ2ZGZzR4Zmd4eW8ybmlneFNVekl1bXNnVm9PM2ttT0x1RVF6cXpkakJ3TFJXbWlECklmMXBMWnoyalVnald4UkhCM1gyWnVVV1d1T09PZnpXM01LaE8ybHEvZi9DdS8wYk83c0x0MCt3U2ZMSU91TFcKcW90blZtRmxMMytqTy82WDNDKzBERHk5aUtwbXJjVDBnWGZLemE1dHJRSURBUUFCb0FBd0RRWUpLb1pJaHZjTgpBUUVMQlFBRGdnRUJBR05WdmVIOGR4ZzNvK21VeVRkbmFjVmQ1N24zSkExdnZEU1JWREkyQTZ1eXN3ZFp1L1BVCkkwZXpZWFV0RVNnSk1IRmQycVVNMjNuNVJsSXJ3R0xuUXFISUh5VStWWHhsdnZsRnpNOVpEWllSTmU3QlJvYXgKQVlEdUI5STZXT3FYbkFvczFqRmxNUG5NbFpqdU5kSGxpT1BjTU1oNndLaTZzZFhpVStHYTJ2RUVLY01jSVUyRgpvU2djUWdMYTk0aEpacGk3ZnNMdm1OQUxoT045UHdNMGM1dVJVejV4T0dGMUtCbWRSeEgvbUNOS2JKYjFRQm1HCkkwYitEUEdaTktXTU0xMzhIQXdoV0tkNjVoVHdYOWl4V3ZHMkh4TG1WQzg0L1BHT0tWQW9FNkpsYWFHdTlQVmkKdjlOSjVaZlZrcXdCd0hKbzZXdk9xVlA3SVFjZmg3d0drWm89Ci0tLS0tRU5EIENFUlRJRklDQVRFIFJFUVVFU1QtLS0tLQo=
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+  - client auth
+EOF 
+
+
+ kubectl apply -f myuser.yaml
+ kubectl get csr
+
+
+kubectl certificate approve myuser  
+
+
+create a role
+bind the role to the user
+
+kubectl auth can-i get pods --namespace dev --as myuser
+YES
+
+kubectl auth can-i get pods --namespace dev --as myuser1
+NO
+
+
+
+21 : prepare simple example related to Role, rolebinding , cluster-role and clusterRoleBinding 
+
+kubectl create role pod-reader --verb=get --resource=pods --resource-name=readablepod --resource-name=anotherpod
+
+kubectl create rolebinding NAME --clusterrole=NAME|--role=NAME [--user=username] [--group=groupname]
+[--serviceaccount=namespace:serviceaccountname] 
+
+
+
+22. drain the node and  make is unschedulable. make sure the pod1 is scheduled on another node.
+    hint: check if the pod is a part of a deployment
+
+   kubectl get deployment
+
+   kubectl get pod pod1 -o yaml > pod1.yaml
+
+
+
+23. we are having 3 pods- pod1 , pod2 and pod3. pod is in namespace ns1 whereas pod2 and pod3 is in namespace ns2.
+    create a network policy for pod1 so that only pod2 can access.
+
+
+
+24. ingress. we are growing and we have started a new application which is exposed to nodeport service named service3.
+    make sure if, if people use /laptop prefix then they should be able to access this latest application.
+    hint: make the changes in ingress and make rule for service3.
+
+
+25. 
+Jsonpath :
+
+1. get nodes names:
+
+   kubectl get nodes -o jsonpath='{.items[*].metadata.name}'
+
+2. get hardware architechture
+   
+   kubectl get nodes -o jsonpath='{.items[*].status.nodeInfo.architecture}'
+
+3. counts of cpu
+
+  kubectl get nodes -o jsonpath='{.items[*].status.capacity.cpu}'
+
+4. kubectl get nodes -o jsonpath='{.items[*].metadata.name} {.items[*].status.capacity.cpu}'
+
+   kubectl get nodes -o jsonpath='{.items[*].metadata.name} {"\n"} {.items[*].status.capacity.cpu}'
+   
+5. Loop - Range (for each node or for each item)
+  
+   kubectl get nodes -o jsonpath= '{range.items[*]}{.metadata.name}{"\t"}{.status.capacity.cpu}{"\n"}{end}'
+   
+   using the custom column >> easy method:
+
+   kubectl get nodes -o=custom-columns=NODE:.metadata.name,CPU:.status.capacity.cpu
+
+   kubectl get nodes nodes --sort-by= .metadata.name
+   kubectl get nodes --sort-by= .status.capacity.cpu
+
+
+26. some of the toubleshooting.
+
+1. scheduler not working : 
+   hint: check the scheduler yaml file if there is any wrong info like command or cert details.
+   change the command : kube-schedulerrr (for example )
+   pod will stay in pending if the scheduler is not working. 
+
+2. controller-manager is not working >> controller manager updates the replicaset
+   kube-config file name is wrong
+   deployment stays at one only
+3.controller-manager cert location is wrong under volume 
+
+4. worker node failure :
+   - check the node itself
+   - check the memory and disk space
+   - check the status of the kubelet
+   - check the kubelet certificate
+
+  troubleshooting:
+  1. kubelet is down    >>> systemctl status kubelet   >>>systemctl start kubelet
+  2. kubelet is in activating status
+     journalctl -u kubelet
+     /etc/kubernetes/kubelet.conf
+     ls /var/lib/kubelet/config.yaml
+     clientCAFile : wrongone
+     service kubelet start
+  3. kubelet is running
+     journalctl -u kubelet
+     control-plane port is wrong.
+     /etc/kubernetes/kubelet.conf  >> wrong port no  
+
+
+
+
